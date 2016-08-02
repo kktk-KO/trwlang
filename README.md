@@ -12,8 +12,7 @@ Build kernel.
 Example
 ------
 
-By default.
-The kernel loads rules for binary integer addition and multipulication.
+By default, the kernel loads rules for binary integer addition and multipulication.
 
 ```
 In  = Add[1]
@@ -64,6 +63,7 @@ This means that there is the halting problem.
 In  = f[x_] -> g[x]
 add new rule
 In  = g[x_] -> f[x]
+add new rule
 In  = f[1] // infinite loop.
 ```
 
