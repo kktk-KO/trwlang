@@ -17,6 +17,11 @@ struct inner_node : public node {
 
   inner_node (std::unique_ptr<node> head)
   : head(std::move(head)) {
+    assert(this->head);
+  }
+
+  inner_node (std::string name)
+  : head(make_string_node(std::move(name))) {
   }
 
   node_kind kind () const noexcept override {
@@ -39,6 +44,12 @@ struct inner_node : public node {
       e->children.push_back(c->clone());
     }
     return std::move(e);
+  }
+
+  inner_node & add_children (std::unique_ptr<node> n) {
+    assert(n);
+    children.push_back(std::move(n));
+    return *this;
   }
 
 };

@@ -11,6 +11,13 @@ long strtol (Iterator1 && first, Iterator2 last) {
 
   auto it = first;
 
+  bool sign = true;
+
+  if (*first == '-') {
+    sign = false;
+    ++first;
+  }
+
   if (*first == '0') {
     ++first;
     if (*first == 'x' || *first == 'X') {
@@ -31,7 +38,7 @@ long strtol (Iterator1 && first, Iterator2 last) {
         ++first;
         continue;
       }
-      return val;
+      return sign ? val : -val;
     }
   } else if (base == 16) {
     while (first != last) {
@@ -51,10 +58,10 @@ long strtol (Iterator1 && first, Iterator2 last) {
         ++first;
         continue;
       }
-      return val;
+      return sign ? val : -val;
     }
   }
-  return val;
+  return sign ? val : -val;
 }
 
 }

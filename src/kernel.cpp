@@ -27,7 +27,7 @@ int main () {
     }
     auto first = line.begin();
     auto last = line.end();
-    auto e = parse_expr(first, last);
+    auto e = parse_node(first, last);
     if (!e) {
       std::cout << "parse error!" << std::endl;
       continue;

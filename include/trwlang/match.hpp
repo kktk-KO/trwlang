@@ -32,6 +32,7 @@ struct matcher {
       stack_pattern_.pop_back();
 
       if (!consume(p, e)) {
+
         return false;
       }
     }
