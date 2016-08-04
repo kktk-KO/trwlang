@@ -23,10 +23,6 @@ long strtol (Iterator1 && first, Iterator2 last) {
     if (*first == 'x' || *first == 'X') {
       base = 16;
       ++first;
-    } else {
-      first = it;
-      // prohibit 8 base.
-      return val;
     }
   }
 

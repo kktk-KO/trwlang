@@ -48,6 +48,9 @@ template <class Iterator>
 bool parse_whitespaces (Iterator & first, Iterator const & last);
 
 template <class Iterator>
+bool parse_string_ (Iterator & first, Iterator const & last);
+
+template <class Iterator>
 bool parse_string (Iterator & first, Iterator const & last);
 
 template <class Iterator1, class Iterator2>
@@ -183,11 +186,19 @@ bool parse_whitespaces (Iterator & first, Iterator const & last) {
 }
 
 template <class Iterator>
-bool parse_string (Iterator & first, Iterator const & last) {
+bool parse_string_ (Iterator & first, Iterator const & last) {
   if (!parse_alpha_(first, last)) { return false; }
   while (parse_alpha_(first, last) || parse_digit_(first, last)) {}
-  parse_whitespaces(first, last);
   return true;
+}
+
+template <class Iterator>
+bool parse_string (Iterator & first, Iterator const & last) {
+  if (parse_string_(first, last)) {
+    parse_whitespaces(first, last);
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -196,8 +207,9 @@ bool parse_string (Iterator & first, Iterator const & last) {
 template <class Iterator1, class Iterator2>
 std::unique_ptr<node> parse_string_node (Iterator1 && first, Iterator2 const & last) {
   auto it1 = first;
-  if (!parse_string(first, last)) { return nullptr; }
+  if (!parse_string_(first, last)) { return nullptr; }
   auto it2 = first;
+  parse_whitespaces(first, last);
   if (parse_ascii(first, last, '_')) {
     auto ret = make_inner_node("PatternHold");
     ret->add_children(make_string_node(it1, it2));

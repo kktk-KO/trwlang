@@ -32,9 +32,9 @@ struct matcher {
       stack_pattern_.pop_back();
 
       if (!consume(p, e)) {
-
         return false;
       }
+
     }
     while (stack_pattern_.size() > 0) {
       node const * p = stack_pattern_.back();
@@ -63,23 +63,24 @@ private:
   }
 
   bool consume_inner_node (inner_node const & p, node const * e) {
-    if (!p.head) { return false; }
 
     if (check_head(p, "PatternAny")) {
       return e != nullptr;
     }
 
     if (check_head(p, "PatternHold")) {
-      if (p.children.size() != 2) {
+      if (p.children.size() != 3) {
         return false;
       }
 
-      if (!p.children[0]->is_string_node()) {
+      auto & first = *(p.children[1]);
+
+      if (!first.is_string_node()) {
         return false;
       }
 
-      hold[p.children[0]->get_string_node().value] = e;
-      stack_pattern_.push_back(p.children[1].get());
+      hold[first.get_string_node().value] = e;
+      stack_pattern_.push_back(p.children[2].get());
       stack_expr_.push_back(e);
       return e != nullptr;
     }
@@ -96,11 +97,10 @@ private:
     for (auto first = p.children.rbegin(), last = p.children.rend(); first != last; ++first) {
       stack_pattern_.push_back(first->get());
     }
-    stack_pattern_.push_back(p.head.get());
+
     for (auto first = ei.children.rbegin(), last = ei.children.rend(); first != last; ++first) {
       stack_expr_.push_back(first->get());
     }
-    stack_expr_.push_back(ei.head.get());
     return true;
   }
 

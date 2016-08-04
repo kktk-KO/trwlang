@@ -29,27 +29,31 @@ struct context {
     if (!p || !e) { return; }
     if (p->is_inner_node()) {
       auto & p2 = p->get_inner_node();
-      if (p2.head->is_string_node()) {
-        std::string const & name = p2.head->get_string_node().value;
+      auto & head = *(p2.children[0]);
+      if (head.is_string_node()) {
+        std::string const & name = head.get_string_node().value;
         rule_named[name].emplace_back(std::move(p), std::move(e));
         return;
       }
+    } else if (p->is_string_node()) {
+      std::string const & name = p->get_string_node().value;
+      rule_named[name].emplace_back(std::move(p), std::move(e));
+      return;
     }
     rule_other.emplace_back(std::move(p), std::move(e));
   }
 
   void evaluate_all (std::unique_ptr<node> & e) {
+
     auto root = make_inner_node(std::move(e));
 
     stack_eval_.clear();
     stack_eval_.emplace_back(root.get(), 0);
+
     while (stack_eval_.size() > 0) {
       std::pair<inner_node *, int> p = stack_eval_.back();
       if (p.second == 0) {
         stack_eval_.back().second = 1;
-        if (p.first->head->is_inner_node()) {
-          stack_eval_.emplace_back(&(p.first->head->get_inner_node()), 0);
-        }
         for (auto & c : p.first->children) {
           if (c->is_inner_node()) {
             stack_eval_.emplace_back(&(c->get_inner_node()), 0);
@@ -59,24 +63,20 @@ struct context {
         stack_eval_.pop_back();
         bool flag = false;
 
-        auto e2 = evaluate_or_apply(*(p.first->head));
-        if (e2) {
-          p.first->head = std::move(e2);
-          flag = true;
-        }
         for (auto & c : p.first->children) {
-          e2 = evaluate_or_apply(*c);
+          auto e2 = evaluate_or_apply(*c);
           if (e2) {
             c = std::move(e2);
             flag = true;
           }
         }
+
         if (flag) {
           stack_eval_.emplace_back(p.first, 0);
         }
       }
     }
-    e = std::move(root->head);
+    e = std::move(root->children[0]);
   }
 
   void evaluate_once (std::unique_ptr<node> & e) {
@@ -88,9 +88,6 @@ struct context {
       std::pair<inner_node *, int> p = stack_eval_.back();
       if (p.second == 0) {
         stack_eval_.back().second = 1;
-        if (p.first->head->is_inner_node()) {
-          stack_eval_.emplace_back(&(p.first->head->get_inner_node()), 0);
-        }
         for (auto & c : p.first->children) {
           if (c->is_inner_node()) {
             stack_eval_.emplace_back(&(c->get_inner_node()), 0);
@@ -100,13 +97,8 @@ struct context {
         stack_eval_.pop_back();
         bool flag = false;
 
-        auto e2 = evaluate_or_apply(*(p.first->head));
-        if (e2) {
-          p.first->head = std::move(e2);
-          flag = true;
-        }
         for (auto & c : p.first->children) {
-          e2 = evaluate_or_apply(*c);
+          auto e2 = evaluate_or_apply(*c);
           if (e2) {
             c = std::move(e2);
             flag = true;
@@ -114,7 +106,7 @@ struct context {
         }
       }
     }
-    e = std::move(root->head);
+    e = std::move(root->children[0]);
   }
 
 private:
@@ -133,26 +125,45 @@ private:
     }
 
     inner_node const & p = e.get_inner_node();
-    if (!p.head->is_string_node()) {
+    if (!p.children[0]->is_string_node()) {
       return nullptr;
     }
 
     // TODO: separate evaluater
-    std::string const & name = p.head->get_string_node().value;
+    std::string const & name = p.children[0]->get_string_node().value;
 
     // TODO: dispatch table
-    if (name == "Add") {
-      return evaluate_add(p);
+
+    // unary op
+    if (p.children.size() == 2) {
+      // TODO: dispatch table
+      if (name == "Add") {
+        return evaluate_add(*(p.children[1]));
+      }
+
+      if (name == "Mul") {
+        return evaluate_mul(*(p.children[1]));
+      }
+
+      if (name == "Div") {
+        return evaluate_div(*(p.children[1]));
+      }
     }
 
-    if (name == "Mul") {
-      return evaluate_mul(p);
-    }
+    // binary op
+    if (p.children.size() == 3) {
+      if (name == "Add") {
+        return evaluate_add(*(p.children[1]), *(p.children[2]));
+      }
 
-    if (name == "Div") {
-      return evaluate_div(p);
-    }
+      if (name == "Mul") {
+        return evaluate_mul(*(p.children[1]), *(p.children[2]));
+      }
 
+      if (name == "Div") {
+        return evaluate_div(*(p.children[1]), *(p.children[2]));
+      }
+    }
     return nullptr;
 
   }
@@ -160,14 +171,25 @@ private:
   std::unique_ptr<node> apply (node const & e) {
     if (e.is_inner_node()) {
       inner_node const & ei = e.get_inner_node();
-      if (ei.head->is_string_node()) {
-        std::string const & name = ei.head->get_string_node().value;
+      if (ei.children[0]->is_string_node()) {
+        std::string const & name = ei.children[0]->get_string_node().value;
         auto it = rule_named.find(name);
         if (it != rule_named.end()) {
           for (auto const & r : it->second) {
             if (m.match(*r.first, e)) {
               return build(*(r.second));
             }
+          }
+        }
+      }
+    } else if (e.is_string_node()) {
+      std::string const & name = e.get_string_node().value;
+      auto it = rule_named.find(name);
+
+      if (it != rule_named.end()) {
+        for (auto const & r : it->second) {
+          if (m.match(*r.first, e)) {
+            return build(*(r.second));
           }
         }
       }
@@ -193,18 +215,15 @@ private:
     }
 
     stack_build_.clear();
-    stack_build_.push_back(static_cast<inner_node *>(f.get()));
+    stack_build_.push_back(&(f->get_inner_node()));
 
     while (stack_build_.size() > 0) {
       inner_node * e = stack_build_.back();
       stack_build_.pop_back();
 
-      if (!replace(e->head) && !e->head->is_leaf_node()) {
-        stack_build_.push_back(static_cast<inner_node *>(e->head.get()));
-      }
       for (auto & c : e->children) {
-        if (!replace(c) && !c->is_leaf_node()) {
-          stack_build_.push_back(static_cast<inner_node *>(c.get()));
+        if (!replace(c) && c->is_inner_node()) {
+          stack_build_.push_back(&(c->get_inner_node()));
         }
       }
     }
@@ -213,91 +232,84 @@ private:
   }
 
   bool replace (std::unique_ptr<node> & e) {
-    if (!e) { return false; }
-    if (e->is_string_node()) {
-      std::string const & name = static_cast<string_node *>(e.get())->value;
-      auto it = m.hold.find(name);
-      if (it != m.hold.end()) {
-        e = it->second->clone();
-        return true;
-      }
+    if (!e) {
+      return false;
     }
-    return false;
+
+    if (!e->is_string_node()) {
+      return false;
+    }
+
+    auto it = m.hold.find(e->get_string_node().value);
+    if (it == m.hold.end()) {
+      return false;
+    }
+    e = it->second->clone();
+    return true;
   }
 
-  std::unique_ptr<node> evaluate_add (inner_node const & e) {
-    if (e.children.size() == 0) { return nullptr; }
-    if (e.children.size() == 1) {
-      return e.children[0]->clone();
-    }
+  std::unique_ptr<node> evaluate_add (node const & a1) {
+    return a1.clone();
+  }
 
-    if (!e.children[0]->is_int_node() || !e.children[1]->is_int_node()) {
+  std::unique_ptr<node> evaluate_add (node const & a1, node const & a2) {
+    if (!a1.is_int_node() || !a2.is_int_node()) {
       return nullptr;
     }
-    long i = e.children[0]->get_int_node().value;
-    long j = e.children[1]->get_int_node().value;
-
-    if (e.children.size() == 2) {
-      return make_int_node(i + j);
-    }
-
-    return nullptr;
+    return make_int_node(a1.get_int_node().value + a2.get_int_node().value);
   }
 
-  std::unique_ptr<node> evaluate_mul (inner_node const & e) {
-    if (e.children.size() == 0) { return nullptr; }
-    if (e.children.size() == 1) {
-      return e.children[0]->clone();
-    }
+  std::unique_ptr<node> evaluate_mul (node const & a1) {
+    return a1.clone();
+  }
 
-    if (!e.children[0]->is_int_node() || !e.children[1]->is_int_node()) {
+  std::unique_ptr<node> evaluate_mul (node const & a1, node const & a2) {
+    if (!a1.is_int_node() || !a2.is_int_node()) {
       return nullptr;
     }
-
-    long i = e.children[0]->get_int_node().value;
-    long j = e.children[1]->get_int_node().value;
-
-    if (e.children.size() == 2) {
-      return make_int_node(i * j);
-    }
-
-    return nullptr;
+    return make_int_node(a1.get_int_node().value * a2.get_int_node().value);
   }
 
-  std::unique_ptr<node> evaluate_div (inner_node const & e) {
-    if (e.children.size() == 0) { return nullptr; }
-    if (e.children.size() == 1) {
-      return e.children[0]->clone();
-    }
+  std::unique_ptr<node> evaluate_div (node const & a1) {
+    return a1.clone();
+  }
 
-    if (!e.children[0]->is_int_node() || !e.children[1]->is_int_node()) {
+  std::unique_ptr<node> evaluate_div (node const & a1, node const & a2) {
+    if (!a1.is_int_node() || !a2.is_int_node()) {
       return nullptr;
     }
 
-    long i = e.children[0]->get_int_node().value;
-    long j = e.children[1]->get_int_node().value;
-    if (j == 0) { return nullptr; }
+    long i = a1.get_int_node().value;
+    long j = a2.get_int_node().value;
 
-    if (e.children.size() == 2) {
-      if (j == 1) {
-        return make_int_node(i);
-      }
-      long r = gcd(i, j);
-      if (r == 1) {
-        return nullptr;
-      } 
-      i /= r;
-      j /= r;
-      if (j == 1) {
-        return make_int_node(i);
-      }
-      auto e = make_inner_node("Div");
-      e->add_children(make_int_node(i));
-      e->add_children(make_int_node(j));
-      return std::move(e);
+    // divide by 0.
+    if (j == 0) {
+      return nullptr;
     }
 
-    return nullptr;
+    // divide by 1.
+    if (j == 1) {
+      return make_int_node(i);
+    }
+ 
+    long r = gcd(i, j);
+
+    // irreducible.
+    if (r == 1) {
+      return nullptr;
+    }
+
+    i /= r;
+    j /= r;
+
+    if (j == 1) {
+      return make_int_node(i);
+    }
+
+    auto e = make_inner_node("Div");
+    e->add_children(make_int_node(i));
+    e->add_children(make_int_node(j));
+    return std::move(e);
   }
 
 };
