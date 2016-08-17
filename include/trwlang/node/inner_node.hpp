@@ -1,7 +1,7 @@
 #pragma once
 
-#include <trwlang/node.hpp>
-#include <trwlang/string_node.hpp>
+#include <trwlang/node/node.hpp>
+#include <trwlang/node/string_node.hpp>
 
 #include <cassert>
 
@@ -9,19 +9,17 @@ namespace trwlang {
 
 /**
  *  @invariant
- *    children.size() > 0
+ *    children.size_child() > 0
  *  @invariant
  *    bool(children[i]) == true
  */
 struct inner_node : public node {
 
-  std::vector<std::unique_ptr<node>> children;
-
   inner_node () {
   }
 
   inner_node (std::unique_ptr<node> head) {
-    children.push_back(std::move(head));
+    children_.push_back(std::move(head));
   }
 
   inner_node (std::string name)
@@ -33,13 +31,13 @@ struct inner_node : public node {
   }
 
   void print (std::ostream & ost) const override {
-    children[0]->print(ost);
+    child(0).print(ost);
     ost << "[";
-    if (children.size() > 1) {
-      children[1]->print(ost);
-      for (int i = 2; i < children.size(); ++i) {
+    if (size_child() > 1) {
+      child(1).print(ost);
+      for (int i = 2; i < size_child(); ++i) {
         ost << ", ";
-        children[i]->print(ost);
+        child(i).print(ost);
       }
     }
     ost << "]";
@@ -47,24 +45,39 @@ struct inner_node : public node {
 
   std::unique_ptr<node> clone () const override {
     auto e = std::unique_ptr<inner_node>(new inner_node());
-    for (auto const & c : children) {
-      e->children.push_back(c->clone());
+    for (auto const & c : children_) {
+      e->add_child(c->clone());
     }
     return std::move(e);
   }
 
-  inner_node & add_children (std::unique_ptr<node> n) & {
-    assert(n);
-    children.push_back(std::move(n));
-    return *this;
+  size_type size_child () const noexcept {
+    return children_.size();
   }
 
-  inner_node && add_children (std::unique_ptr<node> n) && {
+  void add_child (std::unique_ptr<node> n) {
     assert(n);
-    children.push_back(std::move(n));
-    return std::move(*this);
+    children_.push_back(std::move(n));
   }
 
+  void replace_child (size_type i, std::unique_ptr<node> n) {
+    assert(0 <= i && i < size_child());
+    assert(n);
+    children_[i] = std::move(n);
+  }
+
+  node & child(size_type i) noexcept {
+    assert(0 <= i && i < size_child());
+    return *children_[i];
+  }
+
+  node const & child(size_type i) const noexcept {
+    assert(0 <= i && i < size_child());
+    return *children_[i];
+  }
+
+private:
+  std::vector<std::unique_ptr<node>> children_;
 };
 
 inner_node & node::get_inner_node () noexcept {
@@ -82,11 +95,11 @@ std::unique_ptr<inner_node> make_inner_node (Args && ... args) {
 }
 
 bool check_head (inner_node const & e, char const * name) {
-  if (!e.children[0]->is_string_node()) {
+  if (!e.child(0).is_string_node()) {
     return false;
   }
-  
-  string_node const & s = static_cast<string_node const &>(*(e.children[0]));
+
+  string_node const & s = static_cast<string_node const &>(e.child(0));
   return s.value == name;
 }
 

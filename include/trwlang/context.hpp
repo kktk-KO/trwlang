@@ -1,12 +1,7 @@
 #pragma once
 
 #include <trwlang/node.hpp>
-#include <trwlang/inner_node.hpp>
-#include <trwlang/int_node.hpp>
-#include <trwlang/parse.hpp>
-#include <trwlang/string_node.hpp>
 #include <trwlang/match.hpp>
-#include <trwlang/utility/gcd.hpp>
 
 #include <unordered_map>
 
@@ -246,70 +241,6 @@ private:
     }
     e = it->second->clone();
     return true;
-  }
-
-  std::unique_ptr<node> evaluate_add (node const & a1) {
-    return a1.clone();
-  }
-
-  std::unique_ptr<node> evaluate_add (node const & a1, node const & a2) {
-    if (!a1.is_int_node() || !a2.is_int_node()) {
-      return nullptr;
-    }
-    return make_int_node(a1.get_int_node().value + a2.get_int_node().value);
-  }
-
-  std::unique_ptr<node> evaluate_mul (node const & a1) {
-    return a1.clone();
-  }
-
-  std::unique_ptr<node> evaluate_mul (node const & a1, node const & a2) {
-    if (!a1.is_int_node() || !a2.is_int_node()) {
-      return nullptr;
-    }
-    return make_int_node(a1.get_int_node().value * a2.get_int_node().value);
-  }
-
-  std::unique_ptr<node> evaluate_div (node const & a1) {
-    return a1.clone();
-  }
-
-  std::unique_ptr<node> evaluate_div (node const & a1, node const & a2) {
-    if (!a1.is_int_node() || !a2.is_int_node()) {
-      return nullptr;
-    }
-
-    long i = a1.get_int_node().value;
-    long j = a2.get_int_node().value;
-
-    // divide by 0.
-    if (j == 0) {
-      return nullptr;
-    }
-
-    // divide by 1.
-    if (j == 1) {
-      return make_int_node(i);
-    }
- 
-    long r = gcd(i, j);
-
-    // irreducible.
-    if (r == 1) {
-      return nullptr;
-    }
-
-    i /= r;
-    j /= r;
-
-    if (j == 1) {
-      return make_int_node(i);
-    }
-
-    auto e = make_inner_node("Div");
-    e->add_children(make_int_node(i));
-    e->add_children(make_int_node(j));
-    return std::move(e);
   }
 
 };

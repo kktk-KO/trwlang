@@ -1,6 +1,6 @@
 #pragma once
 
-#include <trwlang/leaf_node.hpp>
+#include <trwlang/node/leaf_node.hpp>
 
 #include <memory>
 #include <string>
@@ -8,7 +8,7 @@
 
 namespace trwlang {
 
-struct string_node : leaf_node {
+struct string_node : public leaf_node {
 
   std::string value;
 
@@ -45,14 +45,5 @@ template <class ... Args>
 std::unique_ptr<string_node> make_string_node (Args && ... args) {
   return std::unique_ptr<string_node>(new string_node(std::forward<Args>(args) ...));
 }
-
-// bool check_head (expr const & e, std::string const & str) {
-//   return check_head(e, str.data());
-// }
-//
-// bool check_head (expr const & e, expr const & p) {
-//   if (!(p.head->is_string())) { return false; }
-//   return check_head(e, static_cast<string &>(*(p.head)).str);
-// }
 
 }

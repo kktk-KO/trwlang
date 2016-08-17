@@ -1,13 +1,7 @@
 #pragma once
 
-#include <trwlang/expr.hpp>
 #include <trwlang/node.hpp>
-#include <trwlang/inner_node.hpp>
-#include <trwlang/int_node.hpp>
-#include <trwlang/leaf_node.hpp>
-#include <trwlang/string_node.hpp>
-
-#include <trwlang/strtol.hpp>
+#include <trwlang/utility/strtol.hpp>
 
 namespace trwlang {
 
@@ -202,6 +196,16 @@ bool parse_string (Iterator & first, Iterator const & last) {
 }
 
 /**
+ *  PatternAnyNode := '_'
+ */
+template <class Iterator1, class Iterator2>
+std::unique_ptr<node> parse_pattern_any_node (Iterator1 && first, Iterator2 const & last) {
+  auto it1 = first;
+  if (!parse_ascii(first, last, '_')) { return nullptr; }
+  return make_inner_node(make_string_node("PatternAny"));
+}
+
+/**
  *  StringNode := String | String '_'
  */
 template <class Iterator1, class Iterator2>
@@ -212,15 +216,15 @@ std::unique_ptr<node> parse_string_node (Iterator1 && first, Iterator2 const & l
   parse_whitespaces(first, last);
   if (parse_ascii(first, last, '_')) {
     auto ret = make_inner_node("PatternHold");
-    ret->add_children(make_string_node(it1, it2));
-    ret->add_children(make_inner_node(make_string_node("PatternAny")));
+    ret->add_child(make_string_node(it1, it2));
+    ret->add_child(make_inner_node(make_string_node("PatternAny")));
     return std::move(ret);
   }
   return make_string_node(it1, it2);
 }
 
 /**
- *  IntNode = Int
+ *  IntNode := Int
  */
 template <class Iterator1, class Iterator2>
 std::unique_ptr<node> parse_int_node (Iterator1 && first, Iterator2 const & last) {
@@ -229,6 +233,21 @@ std::unique_ptr<node> parse_int_node (Iterator1 && first, Iterator2 const & last
   if (it == first) { return nullptr; }
   parse_whitespaces(first, last);
   return make_int_node(val);
+}
+
+/**
+ *  BoolNode := "true" | "false"
+ */
+template <class Iterator1, class Iterator2>
+std::unique_ptr<node> parse_bool_node (Iterator1 && first, Iterator2 const & last) {
+  auto it = first;
+  if (parse_fixed_string(first, last, "true")) {
+    return make_bool_node(true);
+  }
+  if (parse_fixed_string(first, last, "false")) {
+    return make_bool_node(false);
+  }
+  return nullptr;
 }
 
 /**
@@ -253,13 +272,19 @@ std::unique_ptr<node> parse_group_node (Iterator1 && first, Iterator2 const & la
 
 /**
  *  LeafNode :=
+ *    BoolNode
+ *    PatternAnyNode
  *    StringNode
  *    IntNode
  *    GroupNode
  */
 template <class Iterator1, class Iterator2>
 std::unique_ptr<node> parse_leaf_node (Iterator1 && first, Iterator2 const & last) {
-  auto e = parse_string_node(first, last);
+  auto e = parse_bool_node(first, last);
+  if (e) { return std::move(e); }
+  e = parse_pattern_any_node(first, last);
+  if (e) { return std::move(e); }
+  e = parse_string_node(first, last);
   if (e) { return std::move(e); }
   e = parse_int_node(first, last);
   if (e) { return std::move(e); };
@@ -286,7 +311,7 @@ std::unique_ptr<node> parse_inner_node (Iterator1 && first, Iterator2 const & la
 
   auto p = parse_node(first, last);
   if (p) {
-    e->add_children(std::move(p));
+    e->add_child(std::move(p));
     while (true) {
       if (!parse_ascii(first, last, ',')) {
         break;
@@ -296,7 +321,7 @@ std::unique_ptr<node> parse_inner_node (Iterator1 && first, Iterator2 const & la
         // TODO diagnostics
         return nullptr;
       }
-      e->add_children(std::move(p));
+      e->add_child(std::move(p));
     }
     parse_ascii(first, last, ',');
   }
@@ -337,7 +362,7 @@ std::unique_ptr<node> parse_mul_div_node (Iterator1 && first, Iterator2 const & 
   } else {
     return std::move(e);
   }
-  p->add_children(std::move(e));
+  p->add_child(std::move(e));
 
   while (true) {
     auto f = parse_inner_node(first, last);
@@ -352,12 +377,12 @@ std::unique_ptr<node> parse_mul_div_node (Iterator1 && first, Iterator2 const & 
     } else if (parse_ascii(first, last, '/')) {
       r = make_inner_node("Div");
     } else {
-      p->add_children(std::move(f));
+      p->add_child(std::move(f));
       break;
     }
 
-    p->add_children(std::move(f));
-    r->add_children(std::move(p));
+    p->add_child(std::move(f));
+    r->add_child(std::move(p));
     p = std::move(r);
   }
 
@@ -392,7 +417,7 @@ std::unique_ptr<node> parse_add_sub_node (Iterator1 && first, Iterator2 const & 
    } else {
     return std::move(e);
   }
-  p->add_children(std::move(e));
+  p->add_child(std::move(e));
 
   while (true) {
     auto f = parse_mul_div_node(first, last);
@@ -407,12 +432,12 @@ std::unique_ptr<node> parse_add_sub_node (Iterator1 && first, Iterator2 const & 
     } else if (parse_ascii(first, last, '-')) {
       r = make_inner_node("Sub");
     } else {
-      p->add_children(std::move(f));
+      p->add_child(std::move(f));
       break;
     }
 
-    p->add_children(std::move(f));
-    r->add_children(std::move(p));
+    p->add_child(std::move(f));
+    r->add_child(std::move(p));
     p = std::move(r);
   }
 
@@ -438,8 +463,8 @@ std::unique_ptr<node> parse_rule_node (Iterator1 && first, Iterator2 const & las
   if (!e2) { return nullptr; }
 
   auto ret = make_inner_node("Rule");
-  ret->add_children(std::move(e));
-  ret->add_children(std::move(e2));
+  ret->add_child(std::move(e));
+  ret->add_child(std::move(e2));
   return std::move(ret);
 }
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <trwlang/node.hpp>
+#include <trwlang/node/node.hpp>
 
 namespace trwlang {
 
